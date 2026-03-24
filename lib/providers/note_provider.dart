@@ -85,10 +85,12 @@ class NotesNotifier extends AsyncNotifier<List<Note>> {
   }
 
   Future<void> syncNow() async {
+    state = const AsyncLoading();
+
     await syncManager.processQueue();
 
-    // reload after sync
-    final fresh = await repo.getNotes();
+    final fresh = await repo.syncAndFetch();
+
     state = AsyncData(fresh);
   }
 }

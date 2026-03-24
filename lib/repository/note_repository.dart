@@ -16,25 +16,46 @@ class NoteRepository {
   });
 
   Future<List<Note>> getNotes() async {
-    final localNotes = await local.getNotes();
-
-    // background refresh
-    _refreshFromServer();
-
-    return localNotes;
+    return await local.getNotes();
   }
 
-  Future<void> _refreshFromServer() async {
+  Future<List<Note>> syncAndFetch() async {
     try {
       final remoteNotes = await remote.fetchNotes();
 
-      for (final note in remoteNotes) {
-        await local.saveNote(note);
+      final remoteIds = remoteNotes.map((e) => e.id).toSet();
+
+      final localNotes = await local.getNotes();
+      final localIds = localNotes.map((e) => e.id).toSet();
+
+      final localMap = {for (final note in localNotes) note.id: note};
+
+      final queuedActions = queue.getAll();
+      final pendingIds = queuedActions
+          .map((a) => a.payload['id'] as String)
+          .toSet();
+
+      for (final remoteNote in remoteNotes) {
+        final localNote = localMap[remoteNote.id];
+
+        if (localNote == null ||
+            remoteNote.updatedAt.isAfter(localNote.updatedAt)) {
+          await local.saveNote(remoteNote);
+        }
       }
 
-      print("🔄 Refreshed from server");
+      final idsToDelete = localIds.difference(remoteIds).difference(pendingIds);
+
+      for (final id in idsToDelete) {
+        await local.deleteNote(id);
+      }
+
+      print("🔄 Full sync + fetch complete");
+
+      return await local.getNotes();
     } catch (e) {
-      print("⚠️ Refresh failed: $e");
+      print("⚠️ syncAndFetch failed: $e");
+      return await local.getNotes();
     }
   }
 

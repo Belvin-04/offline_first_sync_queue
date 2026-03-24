@@ -15,4 +15,8 @@ class HiveService {
         .map((e) => Note.fromMap(Map<String, dynamic>.from(e)))
         .toList();
   }
+
+  Future<void> deleteNote(String id) async {
+    await notesBox.delete(id);
+  }
 }
